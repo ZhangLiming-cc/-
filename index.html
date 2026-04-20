@@ -8,6 +8,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     * { box-sizing: border-box; }
@@ -99,6 +100,11 @@
   <div id="root" style="position:relative;z-index:1"></div>
 
   <script type="text/babel">
+    /* ── Supabase 配置 ── */
+    const SUPABASE_URL  = 'YOUR_SUPABASE_URL';   // 替换为实际 URL
+    const SUPABASE_KEY  = 'YOUR_SUPABASE_ANON_KEY'; // 替换为实际 anon key
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const { useState, useEffect, useRef } = React;
 
     const STORAGE_KEY  = 'yunma_profit_records';
