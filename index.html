@@ -688,6 +688,90 @@
     }
 
     /* ══════════════════════════════════════
+       AllRecordsTab（仅 Admin 可见）
+══════════════════════════════════════ */
+    function AllRecordsTab() {
+      const [allRecords, setAllRecords] = useState([]);
+      const [loading, setLoading]       = useState(true);
+      const [filterUser, setFilterUser] = useState('');
+
+      useEffect(() => {
+        loadUserRecords('admin').then(data => { setAllRecords(data); setLoading(false); });
+      }, []);
+
+      const users    = [...new Set(allRecords.map(r => r.user_name))].sort();
+      const filtered = filterUser ? allRecords.filter(r => r.user_name === filterUser) : allRecords;
+
+      const handleRefresh = () => {
+        setLoading(true);
+        loadUserRecords('admin').then(data => { setAllRecords(data); setLoading(false); });
+      };
+
+      if (loading) {
+        return (
+          <div className="flex items-center justify-center py-20 text-slate-600">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 pulse-dot mr-2"></div>
+            <span className="text-sm">加载全部记录中…</span>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <p className="text-xs text-slate-600">{filtered.length} / {allRecords.length} 条记录</p>
+            <select value={filterUser} onChange={e => setFilterUser(e.target.value)}
+              className="glass-select text-xs py-1 px-3" style={{width:'auto'}}>
+              <option value="">全部用户</option>
+              {users.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+            <button onClick={handleRefresh}
+              className="text-[11px] text-blue-400/60 hover:text-blue-400 transition-colors">刷新</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{maxHeight:'620px', overflowY:'auto', paddingRight:'2px'}}>
+            {filtered.map(r => (
+              <div key={r.id} className="hist-card">
+                <div className="flex items-start justify-between mb-1.5">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {r.model && (
+                        <span className="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-md">{r.model}</span>
+                      )}
+                      {r.customer && <span className="text-sm font-semibold text-slate-200">{r.customer}</span>}
+                      <span className="text-[10px] font-semibold bg-slate-700/50 text-slate-400 px-1.5 py-0.5 rounded">{r.user_name}</span>
+                    </div>
+                    {r.description && <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
+                  {r.sell_currency === 'CNY'
+                    ? <InfoItem label="人民币售价" value={fmtCNY(r.cny_price)} />
+                    : <InfoItem label="美元售价" value={`$${r.usd_price}`} />
+                  }
+                  <InfoItem label="整机成本" value={fmtCNY(r.machine_cost)} />
+                  {r.sell_currency !== 'CNY' && <InfoItem label="退税额" value={fmtCNY(r.tax_refund)} />}
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t sep">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-sm font-bold profit-num ${r.net_profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {fmtCNY(r.net_profit)}
+                    </span>
+                    <span className={`text-xs font-semibold ${r.margin >= 15 ? 'text-emerald-500' : r.margin >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {fmtPct(r.margin)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-700">
+                    {r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : ''}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* ══════════════════════════════════════
        LoginPage
     ══════════════════════════════════════ */
     const ADMIN_PASSWORD = '123456';
@@ -993,6 +1077,10 @@
                   <span className="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{records.length}</span>
                 )}
               </button>
+              {currentUser.toLowerCase() === 'admin' && (
+                <button className={`tab-btn flex-1 ${tab === 'all' ? 'tab-active' : 'tab-inactive'}`}
+                  onClick={() => setTab('all')}>全部记录</button>
+              )}
             </div>
 
             {/* ── 内容区：CSS 显隐保留状态 ── */}
@@ -1031,6 +1119,11 @@
                 }}
               />
             </div>
+            {currentUser.toLowerCase() === 'admin' && (
+              <div style={{display: tab === 'all' ? 'block' : 'none'}}>
+                <AllRecordsTab />
+              </div>
+            )}
 
             {/* ── Footer ── */}
             <div className="mt-6 flex items-center justify-between">
