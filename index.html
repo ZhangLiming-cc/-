@@ -278,23 +278,33 @@
       user,        setUser,
       models,      setModels,
       saved,       onSave,
+      sellCurrency, setSellCurrency,
+      cnyPrice,     setCnyPrice,
     }) {
       const [showModelMgr, setShowModelMgr] = useState(false);
 
       const mc    = num(machineCost);
       const oc    = num(otherCost);
       const usd   = num(usdPrice);
+      const cny   = num(cnyPrice);
       const spare = num(spareRate);
       const cv    = num(commValue);
 
-      const canCalc   = (mc > 0 || usd > 0) && rate !== null;
-      const taxRefund = mc / 1.13 * 0.13;
-      const cnyIncome = usd * (rate || 0);
+      const isUSD = sellCurrency === 'USD';
+
+      const taxRefund = isUSD ? mc / 1.13 * 0.13 : 0;
+      const cnyIncome = isUSD ? usd * (rate || 0) : cny;
       const spareCost = mc * (spare / 100);
-      const commCNY   = commMode === 'pct' ? cnyIncome * (cv / 100) : cv * (rate || 0);
+      const commCNY   = commMode === 'pct'
+        ? cnyIncome * (cv / 100)
+        : cv * (isUSD ? (rate || 0) : 1);
       const netProfit = cnyIncome + taxRefund - mc - oc - spareCost - commCNY;
-      const base      = cnyIncome + taxRefund;
+      const base      = cnyIncome + (isUSD ? taxRefund : 0);
       const margin    = base > 0 ? (netProfit / base) * 100 : 0;
+
+      const canCalc = isUSD
+        ? (mc > 0 || usd > 0) && rate !== null
+        : (mc > 0 || cny > 0);
 
       let ps = 'normal';
       if (canCalc) { ps = netProfit < 0 ? 'loss' : margin < 15 ? 'warn' : 'good'; }
@@ -328,14 +338,40 @@
                   value={otherCost} onChange={setOtherCost} />
               </div>
 
-              {/* 行2：售后备机 + 美元售价 */}
+              {/* 行2：售后备机 + 卖出价格 */}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="售后备机" tag="参与核算" tagColor="bg-purple-500/10 text-purple-400 border border-purple-500/20"
                   hint="占整机成本百分比" suffix="%" placeholder="0"
                   value={spareRate} onChange={setSpareRate} />
-                <Field label="美元售价"
-                  hint="对外报价" prefix="$" suffix="USD"
-                  value={usdPrice} onChange={setUsdPrice} />
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-slate-400">卖出价格</label>
+                    <div className="mode-toggle">
+                      <button className={`mode-btn ${sellCurrency === 'USD' ? 'mode-btn-active' : 'mode-btn-inactive'}`}
+                        onClick={() => setSellCurrency('USD')}>$ 美元</button>
+                      <button className={`mode-btn ${sellCurrency === 'CNY' ? 'mode-btn-active' : 'mode-btn-inactive'}`}
+                        onClick={() => setSellCurrency('CNY')}>¥ 人民币</button>
+                    </div>
+                  </div>
+                  {sellCurrency === 'USD' ? (
+                    <div className="relative flex items-center">
+                      <span className="absolute left-2.5 text-slate-500 text-sm select-none pointer-events-none">$</span>
+                      <input type="number" min="0" step="0.01" placeholder="0.00"
+                        value={usdPrice} onChange={e => setUsdPrice(e.target.value)}
+                        className="glass-input pl-7 pr-12" />
+                      <span className="absolute right-2.5 text-slate-500 text-[11px] select-none pointer-events-none font-medium">USD</span>
+                    </div>
+                  ) : (
+                    <div className="relative flex items-center">
+                      <span className="absolute left-2.5 text-slate-500 text-sm select-none pointer-events-none">¥</span>
+                      <input type="number" min="0" step="0.01" placeholder="0.00"
+                        value={cnyPrice} onChange={e => setCnyPrice(e.target.value)}
+                        className="glass-input pl-7 pr-10" />
+                      <span className="absolute right-2.5 text-slate-500 text-[11px] select-none pointer-events-none font-medium">含税</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 行3：销售佣金（选填，模式切换） */}
@@ -371,7 +407,7 @@
                 {canCalc && commCNY > 0 && (
                   <p className="text-[10px] text-slate-600 mt-1">
                     ≈ {fmtCNY(commCNY)}
-                    {commMode === 'pct' ? `（人民币收入 × ${cv}%）` : `（$${cv} × ${rate}）`}
+                    {commMode === 'pct' ? `（人民币收入 × ${cv}%）` : isUSD ? `（$${cv} × ${rate}）` : `（$${cv} × 1）`}
                   </p>
                 )}
               </div>
@@ -432,10 +468,16 @@
                 )}
               </div>
 
-              <ResultRow label="人民币收入"      sub={`$${usd || '—'} × ${rate ?? '—'}`}
-                value={canCalc ? fmtCNY(cnyIncome) : dash} valueClass="text-slate-300" />
-              <ResultRow label="整机退税额"      sub="整机成本 ÷ 1.13 × 13%"
-                value={canCalc ? fmtCNY(taxRefund) : dash} valueClass="text-emerald-400" />
+              <ResultRow
+                label={isUSD ? '人民币收入' : '人民币卖出价'}
+                sub={isUSD ? `$${usd || '—'} × ${rate ?? '—'}` : '已含税，直接录入'}
+                value={canCalc ? fmtCNY(cnyIncome) : dash}
+                valueClass="text-slate-300"
+              />
+              {isUSD && (
+                <ResultRow label="整机退税额" sub="整机成本 ÷ 1.13 × 13%"
+                  value={canCalc ? fmtCNY(taxRefund) : dash} valueClass="text-emerald-400" />
+              )}
               <ResultRow label="整机成本（含税）" sub="账面录入值"
                 value={canCalc ? fmtCNY(-mc) : dash} valueClass="text-slate-500" />
               <ResultRow label="售后备机成本"    sub={`整机成本 × ${spare || 0}%`}
@@ -677,6 +719,9 @@
       const [user,         setUser]         = useState('');
       const [saved,        setSaved]        = useState(false);
 
+      const [sellCurrency, setSellCurrency] = useState('USD'); // 'USD' | 'CNY'
+      const [cnyPrice,     setCnyPrice]     = useState('');
+
       /* 型号列表 & 历史记录 */
       const [models,  setModels]  = useState(loadModels);
       const [records, setRecords] = useState(loadRecords);
@@ -688,36 +733,46 @@
           .catch(() => { setLoading(false); setRateError(true); });
       }, []);
 
-      const handleSave = () => {
+      const handleSave = async () => {
         const mc    = num(machineCost);
         const oc    = num(otherCost);
         const usd   = num(usdPrice);
+        const cny   = num(cnyPrice);
         const spare = num(spareRate);
         const cv    = num(commValue);
-        if ((mc === 0 && usd === 0) || rate === null) return;
+        const isUSD = sellCurrency === 'USD';
 
-        const taxRefund = mc / 1.13 * 0.13;
-        const cnyIncome = usd * rate;
+        if (isUSD && (mc === 0 && usd === 0)) return;
+        if (!isUSD && (mc === 0 && cny === 0)) return;
+        if (isUSD && rate === null) return;
+
+        const taxRefund = isUSD ? mc / 1.13 * 0.13 : 0;
+        const cnyIncome = isUSD ? usd * rate : cny;
         const spareCost = mc * (spare / 100);
-        const commCNY   = commMode === 'pct' ? cnyIncome * (cv / 100) : cv * rate;
+        const commCNY   = commMode === 'pct' ? cnyIncome * (cv / 100) : cv * (isUSD ? rate : 1);
         const netProfit = cnyIncome + taxRefund - mc - oc - spareCost - commCNY;
-        const base      = cnyIncome + taxRefund;
+        const base      = cnyIncome + (isUSD ? taxRefund : 0);
         const margin    = base > 0 ? (netProfit / base) * 100 : 0;
 
         const now = new Date();
         const pad = n => String(n).padStart(2, '0');
-        const ts  = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const createdAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
         const rec = {
-          id: Date.now(), createdAt: ts,
-          user: user.trim(), deviceModel, customerName: customerName.trim(), desc: desc.trim(),
-          usdPrice: usd, rate, machineCost: mc, spareRate: spare,
-          spareCost, otherCost: oc, taxRefund, cnyIncome,
+          id: Date.now(), createdAt,
+          user: currentUser,
+          deviceModel, customerName: customerName.trim(), desc: desc.trim(),
+          sellCurrency, usdPrice: usd, cnyPrice: cny,
+          machineCost: mc, spareRate: spare, spareCost, otherCost: oc,
+          taxRefund, cnyIncome,
           commMode, commValue: cv, commCNY,
           profit: netProfit, margin,
+          rate: rate || 0,
         };
+
         const next = [...records, rec];
-        setRecords(next); storeRecords(next);
+        setRecords(next);
+        storeRecords(next);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       };
@@ -801,6 +856,8 @@
                 user={user}               setUser={setUser}
                 models={models}           setModels={setModels}
                 saved={saved}             onSave={handleSave}
+                sellCurrency={sellCurrency} setSellCurrency={setSellCurrency}
+                cnyPrice={cnyPrice}         setCnyPrice={setCnyPrice}
               />
             </div>
             <div style={{display: tab === 'history' ? 'block' : 'none'}}>
