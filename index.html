@@ -616,6 +616,7 @@
                   <label className="text-xs font-medium text-slate-400 block mb-1.5">管理员密码</label>
                   <input
                     type="password"
+                    autoFocus
                     placeholder="输入密码"
                     value={password}
                     onChange={e => { setPassword(e.target.value); setPwdError(false); }}
@@ -628,7 +629,7 @@
 
               <button
                 onClick={handleSubmit}
-                disabled={!username.trim()}
+                disabled={!username.trim() || (isAdmin && !password)}
                 className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all
                   ${username.trim()
                     ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30'
