@@ -132,6 +132,19 @@
     };
     const storeModels = m => localStorage.setItem(MODELS_KEY, JSON.stringify(m));
 
+    /* ── 公司 Logo ── */
+    function YunmaLogo({ size = 32 }) {
+      const h = Math.round(size * 0.85);
+      return (
+        <svg width={size} height={h} viewBox="0 0 160 136" xmlns="http://www.w3.org/2000/svg">
+          {/* 橙色左侧箭头形 */}
+          <path d="M12 112 L60 24 L88 68 L60 112 Z" fill="#E8651A" />
+          {/* 蓝色右侧圆角方块 */}
+          <path d="M82 24 Q148 24 148 80 Q148 124 108 124 Q82 124 82 96 Z" fill="#29A8E0" />
+        </svg>
+      );
+    }
+
     /* ── 通用输入框 ── */
     function Field({ label, tag, tagColor, hint, prefix, suffix, value, onChange, placeholder, type = 'number', optional, children }) {
       const pl = prefix ? 'pl-7' : 'pl-3';
