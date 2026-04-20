@@ -122,6 +122,26 @@
 
     const loadRecords = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } };
     const storeRecords = r => localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+    /* ── records Supabase 操作 ── */
+    async function loadUserRecords(userName) {
+      const isAdmin = userName.toLowerCase() === 'admin';
+      let query = db.from('records').select('*').order('created_at', { ascending: false });
+      if (!isAdmin) query = query.eq('user_name', userName);
+      const { data, error } = await query;
+      if (error) { console.error('loadUserRecords error', error); return []; }
+      return data || [];
+    }
+
+    async function deleteRecord(id) {
+      const { error } = await db.from('records').delete().eq('id', id);
+      if (error) throw error;
+    }
+
+    async function deleteAllUserRecords(userName) {
+      const { error } = await db.from('records').delete().eq('user_name', userName);
+      if (error) throw error;
+    }
+
     /* ── device_models Supabase 操作 ── */
     async function fetchModels() {
       const { data, error } = await db.from('device_models').select('*').order('created_at');
@@ -574,12 +594,15 @@
     /* ══════════════════════════════════════
        HistoryTab
     ══════════════════════════════════════ */
-    function HistoryTab({ records, setRecords }) {
-      const del = id => {
-        const next = records.filter(r => r.id !== id);
-        setRecords(next); storeRecords(next);
-      };
-      const delAll = () => { setRecords([]); storeRecords([]); };
+    function HistoryTab({ records, onDelete, onDeleteAll, loading }) {
+      if (loading) {
+        return (
+          <div className="flex items-center justify-center py-20 text-slate-600">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 pulse-dot mr-2"></div>
+            <span className="text-sm">加载记录中…</span>
+          </div>
+        );
+      }
 
       if (records.length === 0) {
         return (
@@ -598,52 +621,63 @@
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs text-slate-600">{records.length} 条记录</p>
-            <button onClick={delAll} className="text-[11px] text-red-500/60 hover:text-red-400 transition-colors">清空全部</button>
+            <button onClick={onDeleteAll} className="text-[11px] text-red-500/60 hover:text-red-400 transition-colors">清空全部</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{maxHeight:'620px', overflowY:'auto', paddingRight:'2px'}}>
-            {[...records].reverse().map(r => (
+            {records.map(r => (
               <div key={r.id} className="hist-card">
                 <div className="flex items-start justify-between mb-1.5">
                   <div>
                     <div className="flex items-center gap-2">
-                      {r.deviceModel && (
-                        <span className="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-md">{r.deviceModel}</span>
+                      {r.model && (
+                        <span className="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-md">{r.model}</span>
                       )}
-                      {r.customerName && (
-                        <span className="text-sm font-semibold text-slate-200">{r.customerName}</span>
+                      {r.customer && (
+                        <span className="text-sm font-semibold text-slate-200">{r.customer}</span>
                       )}
                     </div>
-                    {r.desc && <p className="text-xs text-slate-500 mt-0.5">{r.desc}</p>}
-                    {!r.deviceModel && !r.customerName && !r.desc && (
+                    {r.description && <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>}
+                    {r.model_desc && <p className="text-[10px] text-slate-600 mt-0.5 italic">{r.model_desc}</p>}
+                    {!r.model && !r.customer && !r.description && (
                       <p className="text-sm text-slate-500 italic">未填写信息</p>
                     )}
                   </div>
-                  <button onClick={() => del(r.id)} className="text-slate-700 hover:text-red-400 transition-colors ml-3 mt-0.5 flex-shrink-0">
+                  <button onClick={() => onDelete(r.id)}
+                    className="text-slate-700 hover:text-red-400 transition-colors ml-3 mt-0.5 flex-shrink-0">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
-                  <InfoItem label="美元售价" value={`$${r.usdPrice}`} />
-                  <InfoItem label="汇率" value={`${r.rate} CNY`} />
-                  <InfoItem label="整机成本" value={fmtCNY(r.machineCost)} />
-                  <InfoItem label="退税额" value={fmtCNY(r.taxRefund)} />
-                  {r.spareRate > 0 && <InfoItem label="售后备机" value={`${r.spareRate}%`} />}
-                  {r.otherCost > 0 && <InfoItem label="其他成本" value={fmtCNY(r.otherCost)} />}
-                  {r.commCNY > 0 && (
+                  {r.sell_currency === 'CNY'
+                    ? <InfoItem label="人民币售价" value={fmtCNY(r.cny_price)} />
+                    : <InfoItem label="美元售价" value={`$${r.usd_price}`} />
+                  }
+                  {r.sell_currency !== 'CNY' && <InfoItem label="汇率" value={`${r.rate} CNY`} />}
+                  <InfoItem label="整机成本" value={fmtCNY(r.machine_cost)} />
+                  {r.sell_currency !== 'CNY' && <InfoItem label="退税额" value={fmtCNY(r.tax_refund)} />}
+                  {r.spare_pct > 0 && <InfoItem label="售后备机" value={`${r.spare_pct}%`} />}
+                  {r.other_cost > 0 && <InfoItem label="其他成本" value={fmtCNY(r.other_cost)} />}
+                  {r.comm_cny > 0 && (
                     <InfoItem label="销售佣金"
-                      value={r.commMode === 'pct' ? `${r.commValue}% (${fmtCNY(r.commCNY)})` : `$${r.commValue}`} />
+                      value={r.comm_mode === 'pct' ? `${r.comm_value}% (${fmtCNY(r.comm_cny)})` : `$${r.comm_value}`} />
                   )}
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t sep">
                   <div className="flex items-center gap-3">
-                    <span className={`text-sm font-bold profit-num ${r.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtCNY(r.profit)}</span>
-                    <span className={`text-xs font-semibold ${r.margin >= 15 ? 'text-emerald-500' : r.margin >= 0 ? 'text-amber-400' : 'text-red-400'}`}>{fmtPct(r.margin)}</span>
+                    <span className={`text-sm font-bold profit-num ${r.net_profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {fmtCNY(r.net_profit)}
+                    </span>
+                    <span className={`text-xs font-semibold ${r.margin >= 15 ? 'text-emerald-500' : r.margin >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {fmtPct(r.margin)}
+                    </span>
                   </div>
                   <div className="text-right">
-                    {r.user && <p className="text-[11px] text-slate-500">{r.user}</p>}
-                    <p className="text-[10px] text-slate-700">{r.createdAt}</p>
+                    <p className="text-[11px] text-slate-500">{r.user_name}</p>
+                    <p className="text-[10px] text-slate-700">
+                      {r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : ''}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -772,7 +806,8 @@
       /* 型号列表 & 历史记录 */
       const [models, setModels]               = useState([]);
       const [modelsLoading, setModelsLoading] = useState(true);
-      const [records, setRecords] = useState(loadRecords);
+      const [records, setRecords]           = useState([]);
+      const [recordsLoading, setRecordsLoading] = useState(true);
 
       useEffect(() => {
         fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=CNY')
@@ -787,6 +822,61 @@
           setModelsLoading(false);
         });
       }, []);
+
+      /* 从 Supabase 加载当前用户记录 */
+      useEffect(() => {
+        if (!currentUser) return;
+        setRecordsLoading(true);
+        loadUserRecords(currentUser).then(data => {
+          setRecords(data);
+          setRecordsLoading(false);
+        });
+      }, [currentUser]);
+
+      /* 旧 localStorage 记录迁移 */
+      useEffect(() => {
+        if (!currentUser) return;
+        const oldRaw = localStorage.getItem('yunma_profit_records');
+        if (!oldRaw) return;
+        try {
+          const oldRecs = JSON.parse(oldRaw);
+          if (!Array.isArray(oldRecs) || oldRecs.length === 0) {
+            localStorage.removeItem('yunma_profit_records');
+            return;
+          }
+          if (!confirm(`检测到本地有 ${oldRecs.length} 条旧记录，是否迁移到云端？（迁移后将清除本地记录）`)) return;
+          const toInsert = oldRecs.map(r => ({
+            user_name:     currentUser,
+            model:         r.deviceModel || '',
+            model_desc:    '',
+            customer:      r.customerName || '',
+            description:   r.desc || '',
+            sell_currency: 'USD',
+            usd_price:     r.usdPrice || 0,
+            cny_price:     0,
+            machine_cost:  r.machineCost || 0,
+            other_cost:    r.otherCost || 0,
+            spare_pct:     r.spareRate || 0,
+            comm_mode:     r.commMode || 'pct',
+            comm_value:    r.commValue || 0,
+            rate:          r.rate || 0,
+            tax_refund:    r.taxRefund || 0,
+            net_profit:    r.profit || 0,
+            margin:        r.margin || 0,
+            spare_cost:    r.spareCost || 0,
+            comm_cny:      r.commCNY || 0,
+            cny_income:    r.cnyIncome || 0,
+          }));
+          db.from('records').insert(toInsert).then(({ error }) => {
+            if (error) { alert('迁移失败：' + error.message); return; }
+            localStorage.removeItem('yunma_profit_records');
+            loadUserRecords(currentUser).then(setRecords);
+            alert('迁移成功！');
+          });
+        } catch(e) {
+          localStorage.removeItem('yunma_profit_records');
+        }
+      }, [currentUser]);
 
       const handleSave = async () => {
         const mc    = num(machineCost);
@@ -809,27 +899,37 @@
         const base      = cnyIncome + (isUSD ? taxRefund : 0);
         const margin    = base > 0 ? (netProfit / base) * 100 : 0;
 
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        const createdAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const modelObj  = models.find(m => m.name === deviceModel);
 
         const rec = {
-          id: Date.now(), createdAt,
-          user: currentUser,
-          deviceModel, customerName: customerName.trim(), desc: desc.trim(),
-          sellCurrency, usdPrice: usd, cnyPrice: cny,
-          machineCost: mc, spareRate: spare, spareCost, otherCost: oc,
-          taxRefund, cnyIncome,
-          commMode, commValue: cv, commCNY,
-          profit: netProfit, margin,
-          rate: rate || 0,
+          user_name:     currentUser,
+          model:         deviceModel,
+          model_desc:    modelObj ? (modelObj.description || '') : '',
+          customer:      customerName.trim(),
+          description:   desc.trim(),
+          sell_currency: sellCurrency,
+          usd_price:     usd,
+          cny_price:     cny,
+          machine_cost:  mc,
+          other_cost:    oc,
+          spare_pct:     spare,
+          comm_mode:     commMode,
+          comm_value:    cv,
+          rate:          rate || 0,
+          tax_refund:    taxRefund,
+          net_profit:    netProfit,
+          margin,
+          spare_cost:    spareCost,
+          comm_cny:      commCNY,
+          cny_income:    cnyIncome,
         };
 
-        const next = [...records, rec];
-        setRecords(next);
-        storeRecords(next);
+        const { error } = await db.from('records').insert([rec]);
+        if (error) { console.error('保存失败', error); alert('保存失败：' + error.message); return; }
+
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+        loadUserRecords(currentUser).then(setRecords);
       };
 
       if (!currentUser) {
@@ -917,7 +1017,19 @@
               />
             </div>
             <div style={{display: tab === 'history' ? 'block' : 'none'}}>
-              <HistoryTab records={records} setRecords={setRecords} />
+              <HistoryTab
+                records={records}
+                loading={recordsLoading}
+                onDelete={async (id) => {
+                  await deleteRecord(id);
+                  setRecords(prev => prev.filter(r => r.id !== id));
+                }}
+                onDeleteAll={async () => {
+                  if (!confirm('确认清空你的所有记录？')) return;
+                  await deleteAllUserRecords(currentUser);
+                  setRecords([]);
+                }}
+              />
             </div>
 
             {/* ── Footer ── */}
