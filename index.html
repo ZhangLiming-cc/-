@@ -565,9 +565,96 @@
     }
 
     /* ══════════════════════════════════════
+       LoginPage
+    ══════════════════════════════════════ */
+    const ADMIN_PASSWORD = '123456';
+
+    function LoginPage({ onLogin }) {
+      const [username, setUsername]   = useState('');
+      const [password, setPassword]   = useState('');
+      const [pwdError, setPwdError]   = useState(false);
+      const isAdmin = username.trim().toLowerCase() === 'admin';
+
+      const handleSubmit = () => {
+        const name = username.trim();
+        if (!name) return;
+        if (isAdmin && password !== ADMIN_PASSWORD) {
+          setPwdError(true);
+          return;
+        }
+        onLogin(name);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6">
+          <div className="w-full max-w-sm">
+            {/* Logo + 公司名 */}
+            <div className="flex flex-col items-center mb-8">
+              <YunmaLogo size={64} />
+              <p className="text-slate-400 text-sm font-medium mt-3">云码智能（海南）科技有限公司</p>
+              <h1 className="text-xl font-bold text-white mt-1">海外销售利润计算器</h1>
+            </div>
+
+            {/* 登录卡片 */}
+            <div className="glass rounded-2xl p-6 space-y-4">
+              <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">登录</p>
+
+              <div>
+                <label className="text-xs font-medium text-slate-400 block mb-1.5">用户名</label>
+                <input
+                  type="text"
+                  placeholder="输入你的姓名"
+                  value={username}
+                  onChange={e => { setUsername(e.target.value); setPwdError(false); }}
+                  onKeyDown={e => e.key === 'Enter' && !isAdmin && handleSubmit()}
+                  className="glass-input px-3 py-2"
+                />
+              </div>
+
+              {isAdmin && (
+                <div>
+                  <label className="text-xs font-medium text-slate-400 block mb-1.5">管理员密码</label>
+                  <input
+                    type="password"
+                    placeholder="输入密码"
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setPwdError(false); }}
+                    onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                    className={`glass-input px-3 py-2 ${pwdError ? 'border-red-500/50' : ''}`}
+                  />
+                  {pwdError && <p className="text-[11px] text-red-400 mt-1">密码错误</p>}
+                </div>
+              )}
+
+              <button
+                onClick={handleSubmit}
+                disabled={!username.trim()}
+                className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all
+                  ${username.trim()
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30'
+                    : 'bg-slate-800/30 text-slate-700 border border-slate-800 cursor-not-allowed'
+                  }`}
+              >
+                进入
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ══════════════════════════════════════
        App — 所有状态集中管理
     ══════════════════════════════════════ */
     function App() {
+      /* 用户认证 */
+      const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('yunma_user') || null);
+
+      const handleLogout = () => {
+        localStorage.removeItem('yunma_user');
+        setCurrentUser(null);
+      };
+
       const [tab, setTab] = useState('calc');
 
       /* 汇率 */
@@ -633,6 +720,10 @@
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       };
+
+      if (!currentUser) {
+        return <LoginPage onLogin={name => { localStorage.setItem('yunma_user', name); setCurrentUser(name); }} />;
+      }
 
       return (
         <div className="min-h-screen flex flex-col items-center justify-start px-6 py-8">
