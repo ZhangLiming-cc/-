@@ -107,10 +107,6 @@
 
     const { useState, useEffect, useRef } = React;
 
-    const STORAGE_KEY  = 'yunma_profit_records';
-    const MODELS_KEY   = 'yunma_device_models';
-    const DEFAULT_MODELS = ['Cp50L', 'CS56', 'CS66'];
-
     /* ── utils ── */
     const fmtCNY = n => {
       if (n === null || n === undefined || isNaN(n)) return '—';
@@ -120,8 +116,6 @@
     const fmtPct = n => (isNaN(n) ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%');
     const num = v => parseFloat(v) || 0;
 
-    const loadRecords = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } };
-    const storeRecords = r => localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
     /* ── records Supabase 操作 ── */
     async function loadUserRecords(userName) {
       const isAdmin = userName.toLowerCase() === 'admin';
@@ -331,7 +325,6 @@
       deviceModel, setDeviceModel,
       customerName,setCustomerName,
       desc,        setDesc,
-      user,        setUser,
       models,      isAdmin,
       onModelsRefresh,
       saved,       onSave,
@@ -515,9 +508,6 @@
               <Field label="产品说明" optional type="text" placeholder="项目/订单/备注"
                 value={desc} onChange={setDesc} />
 
-              {/* 使用者 */}
-              <Field label="使用者" optional type="text" placeholder="销售姓名"
-                value={user} onChange={setUser} />
             </div>
           </div>
 
@@ -881,7 +871,6 @@
       const [deviceModel,  setDeviceModel]  = useState('');
       const [customerName, setCustomerName] = useState('');
       const [desc,         setDesc]         = useState('');
-      const [user,         setUser]         = useState('');
       const [saved,        setSaved]        = useState(false);
 
       const [sellCurrency, setSellCurrency] = useState('USD'); // 'USD' | 'CNY'
@@ -1096,7 +1085,6 @@
                 deviceModel={deviceModel} setDeviceModel={setDeviceModel}
                 customerName={customerName} setCustomerName={setCustomerName}
                 desc={desc}               setDesc={setDesc}
-                user={user}               setUser={setUser}
                 models={models}           isAdmin={currentUser.toLowerCase() === 'admin'}
                 onModelsRefresh={data => setModels(data)}
                 saved={saved}             onSave={handleSave}
